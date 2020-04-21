@@ -18,6 +18,8 @@
 -- At the moment, these functions to not enforce minimal representation, and
 -- the only way the decoders can fail is if the input is too short.
 -- This may change in the future.
+--
+-- This code is inspired by Andreas Klebinger's LEB128 implementation in GHC.
 module Codec.LEB128
     (
     -- * Bytestring-based interface
