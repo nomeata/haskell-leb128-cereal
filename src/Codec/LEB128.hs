@@ -38,6 +38,7 @@ module Codec.LEB128
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as BSL
 import qualified Data.ByteString.Builder as B
+import qualified Data.ByteString.Builder.Extra as B
 import qualified Data.Serialize.Get as G
 import Numeric.Natural
 import Control.Applicative
@@ -48,11 +49,11 @@ import Prelude hiding ((<>))
 
 -- | LEB128-encodes a natural number to a strict bytestring
 toLEB128 :: Natural -> BS.ByteString
-toLEB128 = BSL.toStrict . B.toLazyByteString . buildLEB128
+toLEB128 = BSL.toStrict . B.toLazyByteStringWith (B.safeStrategy 32 32) BSL.empty . buildLEB128
 
 -- | SLEB128-encodes an integer to a strict bytestring
 toSLEB128 :: Integer -> BS.ByteString
-toSLEB128 = BSL.toStrict . B.toLazyByteString . buildSLEB128
+toSLEB128 = BSL.toStrict . B.toLazyByteStringWith (B.safeStrategy 32 32) BSL.empty . buildSLEB128
 
 -- | LEB128-encodes a natural number via a builder
 buildLEB128 :: Natural -> B.Builder
