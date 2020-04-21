@@ -98,27 +98,26 @@ getLEB128 = G.label "LEB128" $ go 0 0
         let !byteVal = fromIntegral (clearBit byte 7)
         let !hasMore = testBit byte 7
         let !val = w .|. (byteVal `unsafeShiftL` shift)
+        let !shift' = shift+7
         if hasMore
-            then go (shift+7) val
+            then go shift' val
             else return $! val
 
 -- | SLEB128-decodes an integer via @cereal@
 getSLEB128 :: G.Get Integer
-getSLEB128 = G.label "SLEB128" $ do
-    (val,shift,signed) <- go 0 0
-    return $ if signed
-        then val - 2^shift
-        else val
-    where
-        go :: Int -> Integer -> G.Get (Integer, Int, Bool)
-        go shift val = do
-            byte <- G.getWord8 <|> fail "short encoding"
-            let !byteVal = fromIntegral (clearBit byte 7)
-            let !val' = val .|. (byteVal `unsafeShiftL` shift)
-            let !more = testBit byte 7
-            let !shift' = shift+7
-            if more
-                then go shift' val'
-                else do
-                    let !signed = testBit byte 6
-                    return (val',shift',signed)
+getSLEB128 = G.label "SLEB128" $ go 0 0
+  where
+    go :: Int -> Integer -> G.Get Integer
+    go shift w = do
+        byte <- G.getWord8 <|> fail "short encoding"
+        let !byteVal = fromIntegral (clearBit byte 7)
+        let !hasMore = testBit byte 7
+        let !val = w .|. (byteVal `unsafeShiftL` shift)
+        let !shift' = shift+7
+        if hasMore
+            then go shift' val
+            else do
+                let !signed = testBit byte 6
+                if signed
+                then return $! val - bit shift'
+                else return $! val
