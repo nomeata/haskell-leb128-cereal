@@ -62,6 +62,7 @@ import Data.Maybe
 import Data.Monoid ((<>))
 import Prelude hiding ((<>))
 
+-- | Unsigned number types can be LEB128-encoded
 class (Bits a, Num a, Integral a) => LEB128 a where
 instance LEB128 Natural
 instance LEB128 Word
@@ -70,6 +71,7 @@ instance LEB128 Word16
 instance LEB128 Word32
 instance LEB128 Word64
 
+-- | Signed number types can be SLEB128-encoded
 class (Bits a, Num a, Integral a) => SLEB128 a
 instance SLEB128 Integer
 instance SLEB128 Int
