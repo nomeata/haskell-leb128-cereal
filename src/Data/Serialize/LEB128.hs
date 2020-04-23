@@ -2,7 +2,7 @@
 {-# OPTIONS_GHC -Wno-dodgy-imports #-}
 
 -- |
--- Module      : Codec.LEB128
+-- Module      : Data.Serialize.LEB128
 -- Description : LEB128 encoding
 -- License     : MIT
 -- Maintainer  : Joachim Breitner
@@ -20,7 +20,7 @@
 -- This may change in the future.
 --
 -- This code is inspired by Andreas Klebinger's LEB128 implementation in GHC.
-module Codec.LEB128
+module Data.Serialize.LEB128
     (
     -- * Bytestring-based interface
       toLEB128

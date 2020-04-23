@@ -8,7 +8,7 @@ import Data.Word
 import Data.Bits
 import Data.List
 
-import Codec.LEB128
+import Data.Serialize.LEB128
 
 newtype LargeInteger = LargeInteger Integer deriving (Show, Eq, Ord, Num)
 newtype LargeNatural = LargeNatural Natural deriving (Show, Eq, Ord, Num)
