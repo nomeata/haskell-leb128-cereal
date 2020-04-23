@@ -9,6 +9,7 @@ import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck
 import Numeric.Natural
 import Data.Word
+import Data.Int
 import Data.Bits
 import Data.List
 import Data.Typeable
@@ -66,5 +67,15 @@ sleb128Tests = testGroup (show (typeRep (Proxy @a)))
 main = defaultMain $ adjustOption moreTests $
   testGroup "tests"
   [ leb128Tests @LargeNatural
+  , leb128Tests @Word
+  , leb128Tests @Word8
+  , leb128Tests @Word16
+  , leb128Tests @Word32
+  , leb128Tests @Word64
   , sleb128Tests @LargeInteger
+  , sleb128Tests @Int
+  , sleb128Tests @Int8
+  , sleb128Tests @Int16
+  , sleb128Tests @Int32
+  , sleb128Tests @Int64
   ]
