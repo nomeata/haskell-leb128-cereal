@@ -1,5 +1,8 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
 import qualified Data.ByteString as B
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -8,11 +11,14 @@ import Numeric.Natural
 import Data.Word
 import Data.Bits
 import Data.List
+import Data.Typeable
 
 import Data.Serialize.LEB128
 
-newtype LargeInteger = LargeInteger Integer deriving (Show, Eq, Ord, Num)
-newtype LargeNatural = LargeNatural Natural deriving (Show, Eq, Ord, Num)
+newtype LargeInteger = LargeInteger Integer
+    deriving (Show, Eq, Ord, Num, Bits, Real, Enum, Integral, SLEB128)
+newtype LargeNatural = LargeNatural Natural
+    deriving (Show, Eq, Ord, Num, Bits, Real, Enum, Integral, LEB128)
 
 instance Arbitrary LargeNatural where
     arbitrary = LargeNatural . fromWords <$> arbitrary
@@ -33,26 +39,32 @@ instance Arbitrary LargeInteger where
 moreTests (QuickCheckTests 100) = QuickCheckTests 100000
 moreTests (QuickCheckTests n) = QuickCheckTests n
 
+leb128Tests :: forall a. (Typeable a, Arbitrary a, Show a, LEB128 a) => TestTree
+leb128Tests = testGroup (show (typeRep (Proxy @a)))
+  [ testCase "empty input" $
+    fromLEB128 @a B.empty @=? Left "Failed reading: short encoding\nFrom:\tLEB128\n\n"
+  , testProperty "roundtrip" $
+    \i -> Right i === fromLEB128 (toLEB128 @a i)
+  , testProperty "unique rep" $
+    \(B.pack -> bs) -> case fromLEB128 @a bs of
+      Left _ -> property ()
+      Right i -> bs === toLEB128 i
+  ]
+
+sleb128Tests :: forall a. (Typeable a, Arbitrary a, Show a, SLEB128 a) => TestTree
+sleb128Tests = testGroup (show (typeRep (Proxy @a)))
+  [ testCase "empty input" $
+    fromSLEB128 @a B.empty @=? Left "Failed reading: short encoding\nFrom:\tSLEB128\n\n"
+  , testProperty "roundtrip" $
+    \i -> Right i === fromSLEB128 (toSLEB128 @a i)
+  , testProperty "unique rep" $
+    \(B.pack -> bs) -> case fromSLEB128 @a bs of
+      Left _ -> property ()
+      Right i -> bs === toSLEB128 i
+  ]
+
 main = defaultMain $ adjustOption moreTests $
   testGroup "tests"
-  [ testGroup "bad cases"
-    [ testCase "empty LEB128" $
-        fromLEB128 B.empty @=? Left "Failed reading: short encoding\nFrom:\tLEB128\n\n"
-    , testCase "empty SLEB128" $
-        fromSLEB128 B.empty @=? Left "Failed reading: short encoding\nFrom:\tSLEB128\n\n"
-    ]
-  , testGroup "roundtrip"
-    [ testProperty "LEB128" $ \(LargeNatural i) ->
-        Right i === fromLEB128 (toLEB128 i)
-    , testProperty "SLEB128" $ \(LargeInteger i) ->
-        Right i === fromSLEB128 (toSLEB128 i)
-    ]
-  , testGroup "unique rep"
-    [ testProperty "LEB128" $ \(B.pack -> bs) -> case fromLEB128 bs of
-        Left _ -> property ()
-        Right i -> bs === toLEB128 i
-    , testProperty "SLEB128" $ \(B.pack -> bs) -> case fromSLEB128 bs of
-        Left _ -> property ()
-        Right i -> bs === toSLEB128 i
-    ]
+  [ leb128Tests @LargeNatural
+  , sleb128Tests @LargeInteger
   ]
