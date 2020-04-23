@@ -5,7 +5,7 @@ synopsis:            LEB128 and SLEB128 encoding
 description:
    This module implements encoding and decoding of 'Natural' and 'Integer'
    values according to LEB128 and SLEB128. See
-   https://en.wikipedia.org/wiki/LEB128 for a specification.
+   <https://en.wikipedia.org/wiki/LEB128> for a specification.
    .
    This package uses the @cereal@ package, but also provides direct encoding and
    decoding to 'ByteString'.
@@ -42,5 +42,5 @@ test-suite test
 
 source-repository head
   type:     git
-  location: git://github.com/nomeata/haskell-leb128-cereal
+  location: https://github.com/nomeata/haskell-leb128-cereal
 
