@@ -1,4 +1,6 @@
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# OPTIONS_GHC -Wno-dodgy-imports #-}
 
@@ -54,10 +56,11 @@ import Control.Monad
 import Data.Bits
 import Data.Word
 import Data.Int
+import Data.Maybe
 import Data.Monoid ((<>))
 import Prelude hiding ((<>))
 
-class (Bits a, Num a, Integral a) => LEB128 a
+class (Bits a, Num a, Integral a) => LEB128 a where
 instance LEB128 Natural
 instance LEB128 Word
 instance LEB128 Word8
@@ -91,6 +94,10 @@ buildLEB128 = go
       | otherwise =
         -- bit 7 (8th bit) indicates more to come.
         B.word8 (setBit (fromIntegral i) 7) <> go (i `unsafeShiftR` 7)
+
+-- TODO: Check if this inlines as expected, else add to classes above
+isFinite :: forall a. Bits a => Bool
+isFinite = isJust (bitSizeMaybe (undefined :: a))
 
 -- | SLEB128-encodes an integer via a builder
 buildSLEB128 :: SLEB128 a => a -> B.Builder
@@ -139,15 +146,19 @@ getLEB128 = G.label "LEB128" $ go 0 0
     go !shift !w = do
       byte <- G.getWord8 <|> fail "short encoding"
       let !byteVal = fromIntegral (clearBit byte 7)
-      let !hasMore = testBit byte 7
+      when (isFinite @a) $
+        unless (byteVal `unsafeShiftL` shift `unsafeShiftR` shift == byteVal) $
+          fail "overflow"
       let !val = w .|. (byteVal `unsafeShiftL` shift)
       let !shift' = shift+7
-      if hasMore
+      if hasMore byte
         then go shift' val
         else do
           when (byte == 0x00 && shift > 0)
             $ fail "overlong encoding"
           return $! val
+
+    hasMore b = testBit b 7
 
 -- | SLEB128-decodes an integer via @cereal@
 getSLEB128 :: forall a. SLEB128 a => G.Get a
@@ -157,10 +168,12 @@ getSLEB128 = G.label "SLEB128" $ go 0 0 0
     go !prev !shift !w = do
         byte <- G.getWord8 <|> fail "short encoding"
         let !byteVal = fromIntegral (clearBit byte 7)
-        let !hasMore = testBit byte 7
+        when (isFinite @a) $
+          unless ((byteVal `unsafeShiftL` shift `unsafeShiftR` shift) .&. 0x7f == byteVal) $
+            fail "overflow"
         let !val = w .|. (byteVal `unsafeShiftL` shift)
         let !shift' = shift+7
-        if hasMore
+        if hasMore byte
             then go byte shift' val
             else if signed byte
               then do
@@ -172,4 +185,5 @@ getSLEB128 = G.label "SLEB128" $ go 0 0 0
                   $ fail "overlong encoding"
                 return $! val
 
+    hasMore b = testBit b 7
     signed b = testBit b 6
