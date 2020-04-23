@@ -1,4 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE ViewPatterns #-}
 import qualified Data.ByteString as B
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -27,7 +28,13 @@ instance Arbitrary LargeInteger where
        LargeNatural n <- arbitrary
        return $ LargeInteger $ (if sign then negate else id) $ fromIntegral n
 
-main = defaultMain $ testGroup "tests"
+-- Only change the default (slight hack)
+-- Needed to find corner cases involving non-short encodings
+moreTests (QuickCheckTests 100) = QuickCheckTests 100000
+moreTests (QuickCheckTests n) = QuickCheckTests n
+
+main = defaultMain $ adjustOption moreTests $
+  testGroup "tests"
   [ testGroup "bad cases"
     [ testCase "empty LEB128" $
         fromLEB128 B.empty @=? Left "Failed reading: short encoding\nFrom:\tLEB128\n\n"
@@ -39,5 +46,13 @@ main = defaultMain $ testGroup "tests"
         Right i === fromLEB128 (toLEB128 i)
     , testProperty "SLEB128" $ \(LargeInteger i) ->
         Right i === fromSLEB128 (toSLEB128 i)
+    ]
+  , testGroup "unique rep"
+    [ testProperty "LEB128" $ \(B.pack -> bs) -> case fromLEB128 bs of
+        Left _ -> property ()
+        Right i -> bs === toLEB128 i
+    , testProperty "SLEB128" $ \(B.pack -> bs) -> case fromSLEB128 bs of
+        Left _ -> property ()
+        Right i -> bs === toSLEB128 i
     ]
   ]
