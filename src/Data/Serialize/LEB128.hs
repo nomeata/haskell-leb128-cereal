@@ -109,7 +109,7 @@ getLEB128 :: G.Get Natural
 getLEB128 = G.label "LEB128" $ go 0 0
   where
     go :: Int -> Natural -> G.Get Natural
-    go shift w = do
+    go !shift !w = do
         byte <- G.getWord8 <|> fail "short encoding"
         let !byteVal = fromIntegral (clearBit byte 7)
         let !hasMore = testBit byte 7
@@ -124,7 +124,7 @@ getSLEB128 :: G.Get Integer
 getSLEB128 = G.label "SLEB128" $ go 0 0
   where
     go :: Int -> Integer -> G.Get Integer
-    go shift w = do
+    go !shift !w = do
         byte <- G.getWord8 <|> fail "short encoding"
         let !byteVal = fromIntegral (clearBit byte 7)
         let !hasMore = testBit byte 7
