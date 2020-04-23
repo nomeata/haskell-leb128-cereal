@@ -1,6 +1,4 @@
 {-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE BinaryLiterals #-}
-{-# LANGUAGE NumericUnderscores #-}
 {-# OPTIONS_GHC -Wno-dodgy-imports #-}
 
 -- |
@@ -126,7 +124,7 @@ getLEB128 = G.label "LEB128" $ go 0 0
       if hasMore
         then go shift' val
         else do
-          when (byte == 0 && shift > 0)
+          when (byte == 0x00 && shift > 0)
             $ fail "overlong encoding"
           return $! val
 
@@ -145,11 +143,11 @@ getSLEB128 = G.label "SLEB128" $ go 0 0 0
             then go byte shift' val
             else if signed byte
               then do
-                when (byte == 0b0111_1111 && signed prev && shift > 0)
+                when (byte == 0x7f && signed prev && shift > 0)
                   $ fail "overlong encoding"
                 return $! val - bit shift'
               else do
-                when (byte == 0b0000_0000 && not (signed prev) && shift > 0)
+                when (byte == 0x00 && not (signed prev) && shift > 0)
                   $ fail "overlong encoding"
                 return $! val
 
