@@ -12,8 +12,10 @@
 -- https://en.wikipedia.org/wiki/LEB128 for a specification.
 --
 -- The module provides conversion to and from strict bytestrings.
+--
 -- Additionally, to integrate these into your own parsers and serializers, you
--- use interfaces based on 'B.Builder' and @cereal@'s 'G.Get' monad.
+-- can use the interfaces based on 'B.Builder' as well as @cereal@'s 'G.Get'
+-- and 'P.Put' monad.
 --
 -- At the moment, these functions to not enforce minimal representation, and
 -- the only way the decoders can fail is if the input is too short.
@@ -33,6 +35,8 @@ module Data.Serialize.LEB128
     -- * Cereal interface
     , getLEB128
     , getSLEB128
+    , putLEB128
+    , putSLEB128
     ) where
 
 import qualified Data.ByteString as BS
@@ -40,6 +44,7 @@ import qualified Data.ByteString.Lazy as BSL
 import qualified Data.ByteString.Builder as B
 import qualified Data.ByteString.Builder.Extra as B
 import qualified Data.Serialize.Get as G
+import qualified Data.Serialize.Put as P
 import Numeric.Natural
 import Control.Applicative
 import Data.Bits
@@ -82,6 +87,14 @@ buildSLEB128 = go
                 (val' == -1 && signBit)
         let !byte' = if done then byte else setBit byte 7
         B.word8 byte' <> if done then mempty else go val'
+
+-- | LEB128-encodes a natural number in @cereal@'s 'P.Put' monad
+putLEB128 :: P.Putter Natural
+putLEB128 = P.putBuilder . buildLEB128
+
+-- | SLEB128-encodes an integer in @cereal@'s 'P.Put' monad
+putSLEB128 :: P.Putter Integer
+putSLEB128 = P.putBuilder . buildSLEB128
 
 -- | LEB128-decodes a natural number from a strict bytestring
 fromLEB128 :: BS.ByteString -> Either String Natural
