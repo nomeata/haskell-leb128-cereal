@@ -1,4 +1,6 @@
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE BinaryLiterals #-}
+{-# LANGUAGE NumericUnderscores #-}
 {-# OPTIONS_GHC -Wno-dodgy-imports #-}
 
 -- |
@@ -17,9 +19,8 @@
 -- can use the interfaces based on 'B.Builder' as well as @cereal@'s 'G.Get'
 -- and 'P.Put' monad.
 --
--- At the moment, these functions to not enforce minimal representation, and
--- the only way the decoders can fail is if the input is too short.
--- This may change in the future.
+-- The decoders will fail if the input is not in canonical representation,
+-- i.e. longer than necessary.
 --
 -- This code is inspired by Andreas Klebinger's LEB128 implementation in GHC.
 module Data.Serialize.LEB128
@@ -47,6 +48,7 @@ import qualified Data.Serialize.Get as G
 import qualified Data.Serialize.Put as P
 import Numeric.Natural
 import Control.Applicative
+import Control.Monad
 import Data.Bits
 import Data.Word
 import Data.Monoid ((<>))
@@ -98,11 +100,17 @@ putSLEB128 = P.putBuilder . buildSLEB128
 
 -- | LEB128-decodes a natural number from a strict bytestring
 fromLEB128 :: BS.ByteString -> Either String Natural
-fromLEB128 = G.runGet getLEB128
+fromLEB128 = runComplete getLEB128
 
 -- | SLEB128-decodes an integer from a strict bytestring
 fromSLEB128 :: BS.ByteString -> Either String Integer
-fromSLEB128 = G.runGet getSLEB128
+fromSLEB128 = runComplete getSLEB128
+
+runComplete :: G.Get a -> BS.ByteString -> Either String a
+runComplete p bs = do
+    (x,r) <- G.runGetState p bs 0
+    unless (BS.null r) $ Left "extra bytes in input"
+    return x
 
 -- | LEB128-decodes a natural number via @cereal@
 getLEB128 :: G.Get Natural
@@ -110,30 +118,39 @@ getLEB128 = G.label "LEB128" $ go 0 0
   where
     go :: Int -> Natural -> G.Get Natural
     go !shift !w = do
-        byte <- G.getWord8 <|> fail "short encoding"
-        let !byteVal = fromIntegral (clearBit byte 7)
-        let !hasMore = testBit byte 7
-        let !val = w .|. (byteVal `unsafeShiftL` shift)
-        let !shift' = shift+7
-        if hasMore
-            then go shift' val
-            else return $! val
+      byte <- G.getWord8 <|> fail "short encoding"
+      let !byteVal = fromIntegral (clearBit byte 7)
+      let !hasMore = testBit byte 7
+      let !val = w .|. (byteVal `unsafeShiftL` shift)
+      let !shift' = shift+7
+      if hasMore
+        then go shift' val
+        else do
+          when (byte == 0 && shift > 0)
+            $ fail "overlong encoding"
+          return $! val
 
 -- | SLEB128-decodes an integer via @cereal@
 getSLEB128 :: G.Get Integer
-getSLEB128 = G.label "SLEB128" $ go 0 0
+getSLEB128 = G.label "SLEB128" $ go 0 0 0
   where
-    go :: Int -> Integer -> G.Get Integer
-    go !shift !w = do
+    go :: Word8 -> Int -> Integer -> G.Get Integer
+    go !prev !shift !w = do
         byte <- G.getWord8 <|> fail "short encoding"
         let !byteVal = fromIntegral (clearBit byte 7)
         let !hasMore = testBit byte 7
         let !val = w .|. (byteVal `unsafeShiftL` shift)
         let !shift' = shift+7
         if hasMore
-            then go shift' val
-            else do
-                let !signed = testBit byte 6
-                if signed
-                then return $! val - bit shift'
-                else return $! val
+            then go byte shift' val
+            else if signed byte
+              then do
+                when (byte == 0b0111_1111 && signed prev && shift > 0)
+                  $ fail "overlong encoding"
+                return $! val - bit shift'
+              else do
+                when (byte == 0b0000_0000 && not (signed prev) && shift > 0)
+                  $ fail "overlong encoding"
+                return $! val
+
+    signed b = testBit b 6
