@@ -1,4 +1,5 @@
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# OPTIONS_GHC -Wno-dodgy-imports #-}
 
 -- |
@@ -23,8 +24,11 @@
 -- This code is inspired by Andreas Klebinger's LEB128 implementation in GHC.
 module Data.Serialize.LEB128
     (
+    -- * The class of encodable and decodable types
+      LEB128
+    , SLEB128
     -- * Bytestring-based interface
-      toLEB128
+    , toLEB128
     , fromLEB128
     , toSLEB128
     , fromSLEB128
@@ -49,19 +53,36 @@ import Control.Applicative
 import Control.Monad
 import Data.Bits
 import Data.Word
+import Data.Int
 import Data.Monoid ((<>))
 import Prelude hiding ((<>))
 
+class (Bits a, Num a, Integral a) => LEB128 a
+instance LEB128 Natural
+instance LEB128 Word
+instance LEB128 Word8
+instance LEB128 Word16
+instance LEB128 Word32
+instance LEB128 Word64
+
+class (Bits a, Num a, Integral a) => SLEB128 a
+instance SLEB128 Integer
+instance SLEB128 Int
+instance SLEB128 Int8
+instance SLEB128 Int16
+instance SLEB128 Int32
+instance SLEB128 Int64
+
 -- | LEB128-encodes a natural number to a strict bytestring
-toLEB128 :: Natural -> BS.ByteString
+toLEB128 :: LEB128 a => a -> BS.ByteString
 toLEB128 = BSL.toStrict . B.toLazyByteStringWith (B.safeStrategy 32 32) BSL.empty . buildLEB128
 
 -- | SLEB128-encodes an integer to a strict bytestring
-toSLEB128 :: Integer -> BS.ByteString
+toSLEB128 :: SLEB128 a => a -> BS.ByteString
 toSLEB128 = BSL.toStrict . B.toLazyByteStringWith (B.safeStrategy 32 32) BSL.empty . buildSLEB128
 
 -- | LEB128-encodes a natural number via a builder
-buildLEB128 :: Natural -> B.Builder
+buildLEB128 :: LEB128 a => a -> B.Builder
 buildLEB128 = go
   where
     go i
@@ -72,7 +93,7 @@ buildLEB128 = go
         B.word8 (setBit (fromIntegral i) 7) <> go (i `unsafeShiftR` 7)
 
 -- | SLEB128-encodes an integer via a builder
-buildSLEB128 :: Integer -> B.Builder
+buildSLEB128 :: SLEB128 a => a -> B.Builder
 buildSLEB128 = go
   where
     go val = do
@@ -89,19 +110,19 @@ buildSLEB128 = go
         B.word8 byte' <> if done then mempty else go val'
 
 -- | LEB128-encodes a natural number in @cereal@'s 'P.Put' monad
-putLEB128 :: P.Putter Natural
+putLEB128 :: LEB128 a => P.Putter a
 putLEB128 = P.putBuilder . buildLEB128
 
 -- | SLEB128-encodes an integer in @cereal@'s 'P.Put' monad
-putSLEB128 :: P.Putter Integer
+putSLEB128 :: SLEB128 a => P.Putter a
 putSLEB128 = P.putBuilder . buildSLEB128
 
 -- | LEB128-decodes a natural number from a strict bytestring
-fromLEB128 :: BS.ByteString -> Either String Natural
+fromLEB128 :: LEB128 a => BS.ByteString -> Either String a
 fromLEB128 = runComplete getLEB128
 
 -- | SLEB128-decodes an integer from a strict bytestring
-fromSLEB128 :: BS.ByteString -> Either String Integer
+fromSLEB128 :: SLEB128 a => BS.ByteString -> Either String a
 fromSLEB128 = runComplete getSLEB128
 
 runComplete :: G.Get a -> BS.ByteString -> Either String a
@@ -111,10 +132,10 @@ runComplete p bs = do
     return x
 
 -- | LEB128-decodes a natural number via @cereal@
-getLEB128 :: G.Get Natural
+getLEB128 :: forall a. LEB128 a => G.Get a
 getLEB128 = G.label "LEB128" $ go 0 0
   where
-    go :: Int -> Natural -> G.Get Natural
+    go :: Int -> a -> G.Get a
     go !shift !w = do
       byte <- G.getWord8 <|> fail "short encoding"
       let !byteVal = fromIntegral (clearBit byte 7)
@@ -129,10 +150,10 @@ getLEB128 = G.label "LEB128" $ go 0 0
           return $! val
 
 -- | SLEB128-decodes an integer via @cereal@
-getSLEB128 :: G.Get Integer
+getSLEB128 :: forall a. SLEB128 a => G.Get a
 getSLEB128 = G.label "SLEB128" $ go 0 0 0
   where
-    go :: Word8 -> Int -> Integer -> G.Get Integer
+    go :: Word8 -> Int -> a -> G.Get a
     go !prev !shift !w = do
         byte <- G.getWord8 <|> fail "short encoding"
         let !byteVal = fromIntegral (clearBit byte 7)
