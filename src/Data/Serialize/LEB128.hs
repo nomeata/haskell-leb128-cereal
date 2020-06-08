@@ -182,6 +182,9 @@ getLEB128 = G.label "LEB128" $ go 0 0
     go !shift !w = do
       byte <- G.getWord8 <|> fail "short encoding"
       let !byteVal = fromIntegral (clearBit byte 7)
+      case bitSizeMaybe w of
+          Just bs | shift > bs -> fail "overflow"
+          _ -> return ()
       when (isFinite @a) $
         unless (byteVal `unsafeShiftL` shift `unsafeShiftR` shift == byteVal) $
           fail "overflow"
@@ -211,6 +214,9 @@ getSLEB128 = G.label "SLEB128" $ go 0 0 0
     go !prev !shift !w = do
         byte <- G.getWord8 <|> fail "short encoding"
         let !byteVal = fromIntegral (clearBit byte 7)
+        case bitSizeMaybe w of
+            Just bs | shift > bs -> fail "overflow"
+            _ -> return ()
         when (isFinite @a) $
           unless ((byteVal `unsafeShiftL` shift `unsafeShiftR` shift) .&. 0x7f == byteVal) $
             fail "overflow"
