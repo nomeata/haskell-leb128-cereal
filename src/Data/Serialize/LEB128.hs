@@ -126,20 +126,12 @@ isFinite = isJust (bitSizeMaybe (undefined :: a))
 
 -- | SLEB128-encodes an integer via a builder
 buildSLEB128 :: SLEB128 a => a -> B.Builder
-buildSLEB128 = go
+buildSLEB128 val
+  | val >= -64 && val < 64 = stopByte
+  | otherwise = goByte <> buildSLEB128 (shiftR val 7)
   where
-    go val = do
-        let !byte = fromIntegral (clearBit val 7) :: Word8
-        let !val' = val `unsafeShiftR` 7
-        let !signBit = testBit byte 6
-        let !done =
-                -- Unsigned value, val' == 0 and and last value can
-                -- be discriminated from a negative number.
-                (val' == 0 && not signBit) ||
-                -- Signed value,
-                (val' == -1 && signBit)
-        let !byte' = if done then byte else setBit byte 7
-        B.word8 byte' <> if done then mempty else go val'
+  stopByte = B.word8 (fromIntegral $ clearBit val 7)
+  goByte = B.word8 (fromIntegral $ setBit val 7)
 
 {-# SPECIALIZE buildSLEB128 :: Integer -> B.Builder #-}
 {-# SPECIALIZE buildSLEB128 :: Int -> B.Builder #-}
