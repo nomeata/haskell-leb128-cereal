@@ -22,12 +22,11 @@
 -- can use the interfaces based on 'B.Builder' as well as @cereal@'s 'G.Get'
 -- and 'P.Put' monad.
 --
--- The decoders will fail if the input is not in canonical representation,
--- i.e. longer than necessary.
--- Use "Data.Serialize.LEB128.Lenient" if you need the strict semantics.
+-- The decoders in this module will accept over-long representations.
+-- Use "Data.Serialize.LEB128" if you need the strict semantics.
 --
 -- This code is inspired by Andreas Klebinger's LEB128 implementation in GHC.
-module Data.Serialize.LEB128
+module Data.Serialize.LEB128.Lenient
     (
     -- * The class of encodable and decodable types
       LEB128
@@ -185,10 +184,7 @@ getLEB128 = G.label "LEB128" $ go 0 0
       let !shift' = shift+7
       if hasMore byte
         then go shift' val
-        else do
-          when (byte == 0x00 && shift > 0)
-            $ fail "overlong encoding"
-          return $! val
+        else return $! val
 
     hasMore b = testBit b 7
 
@@ -218,14 +214,8 @@ getSLEB128 = G.label "SLEB128" $ go 0 0 0
         if hasMore byte
             then go byte shift' val
             else if signed byte
-              then do
-                when (byte == 0x7f && signed prev && shift > 0)
-                  $ fail "overlong encoding"
-                return $! val - bit shift'
-              else do
-                when (byte == 0x00 && not (signed prev) && shift > 0)
-                  $ fail "overlong encoding"
-                return $! val
+              then return $! val - bit shift'
+              else return $! val
 
     hasMore b = testBit b 7
     signed b = testBit b 6

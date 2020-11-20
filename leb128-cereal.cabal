@@ -1,6 +1,6 @@
 cabal-version:       >=1.10
 name:                leb128-cereal
-version:             1.1
+version:             1.2
 synopsis:            LEB128 and SLEB128 encoding
 description:
    This module implements encoding and decoding of 'Natural' and 'Integer'
@@ -22,6 +22,7 @@ tested-with:         GHC == 8.2, GHC == 8.4, GHC == 8.6, GHC == 8.8, GHC == 8.10
 
 library
   exposed-modules:     Data.Serialize.LEB128
+  exposed-modules:     Data.Serialize.LEB128.Lenient
   build-depends:       base >=4.10 && <5
   build-depends:       bytestring >= 0.10
   build-depends:       cereal >= 0.5
@@ -30,6 +31,17 @@ library
   ghc-options:         -Wall -Wno-name-shadowing
 
 test-suite test
+  default-language: Haskell2010
+  type: exitcode-stdio-1.0
+  main-is: test.hs
+  build-depends: base >= 4 && < 5
+  build-depends: tasty >= 0.7
+  build-depends: tasty-quickcheck
+  build-depends: tasty-hunit
+  build-depends: leb128-cereal
+  build-depends: bytestring
+
+test-suite test-lenient
   default-language: Haskell2010
   type: exitcode-stdio-1.0
   main-is: test.hs
